@@ -1,5 +1,7 @@
 from http import HTTPStatus
+from exceptions import ErrorOnSendingMessage, ResponseIsNot200
 import logging
+import pathlib
 import os
 import sys
 import telegram
@@ -9,25 +11,6 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-
-logging.basicConfig(
-    format='%(asctime)s, %(levelname)s, %(funcName)s, %(message)s',
-    level=logging.DEBUG,
-    filename='main.log',
-    filemode='w'
-)
-
-
-class ErrorOnSendingMessage(Exception):
-    """Ошибка при отправке сообщения в телеграмм."""
-
-    pass
-
-
-class ResponseIsNot200(Exception):
-    """Статус ответа Api не равен 200."""
-
-    pass
 
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
@@ -49,10 +32,13 @@ HOMEWORK_VERDICTS = {
 def check_tokens():
     """Проверка наличия токенов."""
     list_of_tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    if not all(list_of_tokens):
-        logging.critical('Отсутствует переменная окрудения')
-        sys.exit()
-    return True
+    try:
+        if not all(list_of_tokens):
+            pass
+            logging.critical('Отсутствует переменная окрудения')
+            sys.exit()
+    except Exception:
+        pass
 
 
 def get_api_answer(timestamp):
@@ -60,7 +46,7 @@ def get_api_answer(timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=timestamp)
         if response.status_code != HTTPStatus.OK:
-            raise ResponseIsNot200(logging.error('Статус код не равен 200'))
+            raise ResponseIsNot200()
         else:
             response = response.json()
     except Exception as error:
@@ -70,35 +56,36 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Проверка объекта, полученного через get_api_answer()."""
-    if isinstance(response, dict) is not True:
+    if not isinstance(response, dict):
         raise TypeError(logging.error(
-            'Возвращаемый тип данных имеет отличия от dict'))
-    else:
-        try:
-            value = response['homeworks']
-        except KeyError as error:
-            logging.error(f'Отсутствует ключ {error}')
+            f'Данные не приходят {type(response)} в виде dict'))
 
-    if isinstance(value, list) is not True:
+    try:
+        value = response['homeworks']
+    except KeyError as error:
+        raise KeyError(logging.error(f'Отсутствует ключ {error}'))
+
+    if not isinstance(value, list):
         raise TypeError(logging.error('Данные не приходят в виде list'))
-    elif len(value) == 0:
-        raise ValueError(logging.error('List домашнего задания пуст'))
-    else:
-        return value[0]
+    elif 'current_date' in value:
+        raise ValueError(logging.error('Current date in value'))
+    elif not value:
+        raise ValueError(logging.debug('List домашнего задания пуст'))
+
+    return value[0]
 
 
 def parse_status(homework):
     """Получение нужных данных для отправки в телеграм."""
-    if 'homework_name' in homework:
-        homework_name = homework.get('homework_name')
-        try:
-            homework_status = homework.get('status')
-            if homework_status in HOMEWORK_VERDICTS.keys():
-                verdict = HOMEWORK_VERDICTS.get(homework_status)
-        except Exception:
+    try:
+        homework_name = homework['homework_name']
+        homework_status = homework['status']
+        if homework_status in HOMEWORK_VERDICTS:
+            verdict = HOMEWORK_VERDICTS.get(homework_status)
+        else:
             raise KeyError(logging.error(
                 'There is no such status in HOMEWORK_VERDICTS'))
-    else:
+    except Exception:
         raise NameError(logging.error(
             'There is no homework_name in API answer'))
 
@@ -127,8 +114,7 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            homework = check_response(response)
-            message = parse_status(homework)
+            message = parse_status(check_response(response))
             if message:
                 send_message(bot, message)
             time.sleep(RETRY_PERIOD)
@@ -142,3 +128,10 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+logging.basicConfig(
+    format='%(asctime)s, %(levelname)s, %(funcName)s, %(message)s',
+    level=logging.DEBUG,
+    filename=f'{pathlib.Path(__file__)}.log',
+    filemode='w'
+)
