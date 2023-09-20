@@ -1,5 +1,4 @@
 from http import HTTPStatus
-from exceptions import ErrorOnSendingMessage, ResponseIsNot200
 import logging
 import pathlib
 import os
@@ -8,6 +7,7 @@ import telegram
 import time
 import requests
 from dotenv import load_dotenv
+from exceptions import ErrorOnSendingMessage, ResponseIsNot200
 
 
 load_dotenv()
@@ -32,13 +32,10 @@ HOMEWORK_VERDICTS = {
 def check_tokens():
     """Проверка наличия токенов."""
     list_of_tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    try:
-        if not all(list_of_tokens):
-            pass
-            logging.critical('Отсутствует переменная окрудения')
-            sys.exit()
-    except Exception:
-        pass
+
+    if not all(list_of_tokens):
+        logging.critical('Отсутствует переменная окрудения')
+        sys.exit()
 
 
 def get_api_answer(timestamp):
@@ -49,28 +46,26 @@ def get_api_answer(timestamp):
             raise ResponseIsNot200()
         else:
             response = response.json()
-    except Exception as error:
-        raise TypeError(logging.critical(f'Сбой в работе программы: {error}'))
+    except Exception:
+        raise TypeError
     return response
 
 
 def check_response(response):
     """Проверка объекта, полученного через get_api_answer()."""
     if not isinstance(response, dict):
-        raise TypeError(logging.error(
-            f'Данные не приходят {type(response)} в виде dict'))
-
+        raise TypeError
     try:
         value = response['homeworks']
-    except KeyError as error:
-        raise KeyError(logging.error(f'Отсутствует ключ {error}'))
+    except KeyError:
+        raise KeyError
 
     if not isinstance(value, list):
-        raise TypeError(logging.error('Данные не приходят в виде list'))
+        raise TypeError
     elif 'current_date' in value:
-        raise ValueError(logging.error('Current date in value'))
+        raise ValueError
     elif not value:
-        raise ValueError(logging.debug('List домашнего задания пуст'))
+        raise ValueError
 
     return value[0]
 
@@ -83,11 +78,9 @@ def parse_status(homework):
         if homework_status in HOMEWORK_VERDICTS:
             verdict = HOMEWORK_VERDICTS.get(homework_status)
         else:
-            raise KeyError(logging.error(
-                'There is no such status in HOMEWORK_VERDICTS'))
+            raise KeyError
     except Exception:
-        raise NameError(logging.error(
-            'There is no homework_name in API answer'))
+        raise NameError
 
     message = f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -100,7 +93,7 @@ def send_message(bot, message):
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug('Message are sended')
     except Exception:
-        raise ErrorOnSendingMessage(logging.error('Error on sending message'))
+        raise ErrorOnSendingMessage
 
 
 def main():
@@ -108,16 +101,23 @@ def main():
     check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time() - RETRY_PERIOD - 3000000)
+    timestamp = int(time.time() - RETRY_PERIOD)
     timestamp = {'from_date': timestamp}
 
+    previous_message = ''
     while True:
         try:
             response = get_api_answer(timestamp)
+            response = get_api_answer(
+                {'from_date': response.get('current_date')})
             message = parse_status(check_response(response))
-            if message:
+            if previous_message == '' or previous_message != message:
                 send_message(bot, message)
+            else:
+                send_message(bot, "statu don't chage")
             time.sleep(RETRY_PERIOD)
+        except ErrorOnSendingMessage as error:
+            logging.error(error)
         except Exception as error:
             message = f'Error on programm running: {error}'
             logging.error(message)
@@ -127,11 +127,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    logging.basicConfig(
+        format='%(asctime)s, %(levelname)s, %(funcName)s, %(message)s',
+        level=logging.DEBUG,
+        filename=f'{pathlib.Path(__file__)}.log',
+        filemode='w'
+    )
 
-logging.basicConfig(
-    format='%(asctime)s, %(levelname)s, %(funcName)s, %(message)s',
-    level=logging.DEBUG,
-    filename=f'{pathlib.Path(__file__)}.log',
-    filemode='w'
-)
+    main()
