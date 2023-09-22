@@ -46,26 +46,26 @@ def get_api_answer(timestamp):
             raise ResponseIsNot200()
         else:
             response = response.json()
-    except Exception:
-        raise TypeError
+    except Exception as error:
+        raise TypeError(f'Error on programm running: {error}')
     return response
 
 
 def check_response(response):
     """Проверка объекта, полученного через get_api_answer()."""
     if not isinstance(response, dict):
-        raise TypeError
+        raise TypeError(f'Response type {type(response)} is not dict')
+    if 'current_date' not in response:
+        raise ValueError('Thre is no current date in response')
     try:
         value = response['homeworks']
-    except KeyError:
-        raise KeyError
+    except KeyError as error:
+        raise KeyError(f'There is no such key {error}')
 
     if not isinstance(value, list):
-        raise TypeError
-    elif 'current_date' in value:
-        raise ValueError
-    elif not value:
-        raise ValueError
+        raise TypeError(f'Response value type {type(value)} is no list')
+    if not value:
+        raise ValueError('Value is empty')
 
     return value[0]
 
@@ -78,9 +78,9 @@ def parse_status(homework):
         if homework_status in HOMEWORK_VERDICTS:
             verdict = HOMEWORK_VERDICTS.get(homework_status)
         else:
-            raise KeyError
+            raise KeyError('There is no such status in HOMEWORK VERDICTS')
     except Exception:
-        raise NameError
+        raise NameError('There is no such homework')
 
     message = f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -111,11 +111,11 @@ def main():
             response = get_api_answer(
                 {'from_date': response.get('current_date')})
             message = parse_status(check_response(response))
-            if previous_message == '' or previous_message != message:
+            if previous_message != message:
                 send_message(bot, message)
             else:
-                send_message(bot, "statu don't chage")
-            time.sleep(RETRY_PERIOD)
+                send_message(bot, message)
+                logging.debug('Message the same as previous')
         except ErrorOnSendingMessage as error:
             logging.error(error)
         except Exception as error:
