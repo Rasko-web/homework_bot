@@ -43,7 +43,8 @@ def get_api_answer(timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=timestamp)
         if response.status_code != HTTPStatus.OK:
-            raise ResponseIsNot200()
+            raise ResponseIsNot200(
+                f"Response status code {response.status_code}")
         else:
             response = response.json()
     except Exception as error:
@@ -67,7 +68,7 @@ def check_response(response):
     if not value:
         raise ValueError('Value is empty')
 
-    return value[0]
+    return value
 
 
 def parse_status(homework):
@@ -80,7 +81,7 @@ def parse_status(homework):
         else:
             raise KeyError('There is no such status in HOMEWORK VERDICTS')
     except Exception:
-        raise NameError('There is no such homework')
+        raise TypeError('There is no such homework')
 
     message = f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -101,20 +102,28 @@ def main():
     check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time() - RETRY_PERIOD)
+    timestamp = int(time.time() - RETRY_PERIOD - 5000000)
     timestamp = {'from_date': timestamp}
 
     previous_message = ''
     while True:
         try:
             response = get_api_answer(timestamp)
+            value = check_response(response)
+
+            timestamp = response.get('current_date')
             response = get_api_answer(
-                {'from_date': response.get('current_date')})
-            message = parse_status(check_response(response))
+                {'from_date': timestamp})
+            value = check_response(response)
+
+            if value:
+                value = value[0]
+                message = parse_status(value)
+            else:
+                pass
             if previous_message != message:
                 send_message(bot, message)
             else:
-                send_message(bot, message)
                 logging.debug('Message the same as previous')
         except ErrorOnSendingMessage as error:
             logging.error(error)
