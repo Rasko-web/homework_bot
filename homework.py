@@ -65,8 +65,6 @@ def check_response(response):
 
     if not isinstance(value, list):
         raise TypeError(f'Response value type {type(value)} is no list')
-    if not value:
-        raise ValueError('Value is empty')
 
     return value
 
@@ -102,7 +100,7 @@ def main():
     check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time() - RETRY_PERIOD - 5000000)
+    timestamp = int(time.time() - RETRY_PERIOD - 500000)
     timestamp = {'from_date': timestamp}
 
     previous_message = ''
@@ -111,20 +109,15 @@ def main():
             response = get_api_answer(timestamp)
             value = check_response(response)
 
-            timestamp = response.get('current_date')
-            response = get_api_answer(
-                {'from_date': timestamp})
-            value = check_response(response)
-
             if value:
                 value = value[0]
                 message = parse_status(value)
-            else:
-                pass
+
             if previous_message != message:
                 send_message(bot, message)
             else:
                 logging.debug('Message the same as previous')
+            timestamp = response.get('current_date')
         except ErrorOnSendingMessage as error:
             logging.error(error)
         except Exception as error:
