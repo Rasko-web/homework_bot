@@ -112,11 +112,12 @@ def main():
             if value:
                 value = value[0]
                 message = parse_status(value)
+                if previous_message != message:
+                    send_message(bot, message)
+                    previous_message = message
+                else:
+                    logging.debug('Message the same as previous')
 
-            if previous_message != message:
-                send_message(bot, message)
-            else:
-                logging.debug('Message the same as previous')
             timestamp = response.get('current_date')
         except ErrorOnSendingMessage as error:
             logging.error(error)
