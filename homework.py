@@ -100,7 +100,7 @@ def main():
     check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time() - RETRY_PERIOD - 500000)
+    timestamp = int(time.time() - RETRY_PERIOD - 50000)
     timestamp = {'from_date': timestamp}
 
     previous_message = ''
@@ -118,7 +118,7 @@ def main():
                 else:
                     logging.debug('Message the same as previous')
 
-            timestamp = response.get('current_date')
+            timestamp['from_date'] = response.get('current_date')
         except ErrorOnSendingMessage as error:
             logging.error(error)
         except Exception as error:
